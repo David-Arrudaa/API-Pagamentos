@@ -1,8 +1,10 @@
 const express = require('express');
-const router = express.Router(); 
+const router = express.Router();
 
 const pagamentoController = require('../controllers/pagamentoController');
 
-router.post('/', pagamentoController.processarPagamento);
+const { validarPagamento } = require('../validators/pagamentoValidator');
+
+router.post('/', validarPagamento, pagamentoController.processarPagamento);
 
 module.exports = router;
