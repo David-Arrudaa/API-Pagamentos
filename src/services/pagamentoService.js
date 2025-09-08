@@ -1,10 +1,23 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const DADOS_PEDIDOS_PENDENTES = {
-  "TXID12345ABC67890": { /* ... */ },
-  "TXID98765ZYX43210": { /* ... */ }
+  "TXID12345ABC67890": {
+    comprador: { nome: "João da Silva", cpf: "111.222.333-44" },
+    vendedor: { id_vendedor: "VEND-AFILIADO-007" },
+    valor_total: 150.00,
+  },
+  "TXID98765ZYX43210": {
+    comprador: { nome: "Maria Oliveira", cpf: "555.666.777-88" },
+    vendedor: { id_vendedor: "VEND-AFILIADO-008" },
+    valor_total: 300.00,
+  }
 };
-const buscarDadosTransacao = (idTransacao) => { /* ... */ };
+
+const buscarDadosTransacao = (idTransacao) => {
+  console.log(`SERVICE: Buscando dados para a transação ${idTransacao}`);
+  const dados = DADOS_PEDIDOS_PENDENTES[idTransacao];
+  return dados;
+};
 
 const processarPagamento = async (metodoPagamento, dadosTransacao, tokenCartao) => {
 

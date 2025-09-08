@@ -1,39 +1,38 @@
-
 const pagamentoService = require('../services/pagamentoService');
 
-const processarPagamento = (req, res) => {
-  console.log('CONTROLLER: Processando requisição de pagamento...');
-  
-  const { id_transacao_externa, metodo_pagamento, dados_cartao } = req.body;
+const processarPagamento = async (req, res) => {
+  try {
+    console.log('CONTROLLER: 1. Iniciando processamento.');
+    
+    const { id_transacao_externa, metodo_pagamento, token_cartao } = req.body;
+    
+    const dadosTransacaoDoBanco = pagamentoService.buscarDadosTransacao(id_transacao_externa);
+    console.log('CONTROLLER: 2. Dados da transação (falsos) buscados.');
 
-  const dadosTransacaoDoBanco = pagamentoService.buscarDadosTransacao(id_transacao_externa);
-
-  if (!dadosTransacaoDoBanco) {
-    console.log('CONTROLLER: Transação não encontrada.');
-    return res.status(404).json({
-      mensagem: `Transação com ID ${id_transacao_externa} não foi encontrada.`
-    });
-  }
-
-  dadosTransacaoDoBanco.id_transacao_externa = id_transacao_externa;
-  
-  const resultadoProcessamento = pagamentoService.processarPagamento(
-    metodo_pagamento,
-    dadosTransacaoDoBanco,
-    dados_cartao
-  );
-
-  const resposta = {
-    ...resultadoProcessamento, 
-    detalhes_pagamento: {
-      valor_total: dadosTransacaoDoBanco.valor_total,
-      comprador: dadosTransacaoDoBanco.comprador,
+    if (!dadosTransacaoDoBanco) {
+      console.log('CONTROLLER: Erro - Transação não encontrada no banco falso.');
+      return res.status(404).json({ mensagem: `Transação com ID ${id_transacao_externa} não foi encontrada.` });
     }
-  };
+    
+    dadosTransacaoDoBanco.id_transacao_externa = id_transacao_externa;
+    
+    console.log('CONTROLLER: 3. Chamando o service para processar o pagamento...');
+    const resultadoProcessamento = await pagamentoService.processarPagamento(
+      metodo_pagamento,
+      dadosTransacaoDoBanco,
+      token_cartao
+    );
+    console.log('CONTROLLER: 4. Service respondeu. Montando a resposta final.');
 
-  const httpStatus = resultadoProcessamento.status_transacao === 'APROVADO' ? 201 : 200;
+    const httpStatus = resultadoProcessamento.status_transacao === 'APROVADO' ? 201 : 200;
 
-  res.status(httpStatus).json(resposta);
+    console.log('CONTROLLER: 5. Enviando resposta.');
+    return res.status(httpStatus).json(resultadoProcessamento);
+
+  } catch (error) {
+    console.error('CONTROLLER: Ocorreu um erro inesperado no controller:', error);
+    return res.status(500).json({ erro: 'Ocorreu um erro interno no servidor.' });
+  }
 };
 
 module.exports = {
