@@ -1,52 +1,46 @@
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-const DADOS_PEDIDOS_PENDENTES = {
-  "TXID12345ABC67890": {
-    comprador: { nome: "João da Silva", cpf: "111.222.333-44" },
-    vendedor: { id_vendedor: "VEND-AFILIADO-007" },
-    valor_total: 150.00,
-  },
-  "TXID98765ZYX43210": {
-    comprador: { nome: "Maria Oliveira", cpf: "555.666.777-88" },
-    vendedor: { id_vendedor: "VEND-AFILIADO-008" },
-    valor_total: 300.00,
-  }
-};
+const buscarDadosTransacao = async (idTransacaoExterna) => {
+  console.log(`SERVICE: Buscando dados REAIS para a transação ${idTransacaoExterna}`);
+  
+  const pedido = await prisma.pedido.findUnique({
+    where: {
+      id_transacao_externa: idTransacaoExterna,
+    },
+    include: {
+      comprador: true, 
+      vendedor: true,  
+    }
+  });
 
-const buscarDadosTransacao = (idTransacao) => {
-  console.log(`SERVICE: Buscando dados para a transação ${idTransacao}`);
-  const dados = DADOS_PEDIDOS_PENDENTES[idTransacao];
-  return dados;
+  return pedido;
 };
 
 const processarPagamento = async (metodoPagamento, dadosTransacao, tokenCartao) => {
-
   if (metodoPagamento !== 'cartao_credito') {
     return {
       status_transacao: 'FALHA',
-      mensagem: 'Método de pagamento não suportado nesta versão.'
-    }
+      mensagem: 'Método de pagamento não suportado para processamento real.'
+    };
   }
 
   try {
     console.log('SERVICE: Criando cobrança no Stripe...');
-
     const charge = await stripe.charges.create({
-      amount: Math.round(dadosTransacao.valor_total * 100), 
+      amount: Math.round(Number(dadosTransacao.valor_total) * 100),
       currency: 'brl',
-      source: tokenCartao, 
+      source: tokenCartao,
       description: `Pagamento para a transação ${dadosTransacao.id_transacao_externa}`,
     });
 
-    let statusPagamento = 'RECUSADO';
-    if (charge.paid) {
-      statusPagamento = 'APROVADO';
-    }
-
+    const statusPagamento = charge.paid ? 'APROVADO' : 'RECUSADO';
     let divisaoValores = null;
+
     if (statusPagamento === 'APROVADO') {
       console.log('SERVICE: Pagamento aprovado pelo Stripe. Calculando divisão.');
-      const valorTotal = dadosTransacao.valor_total;
+      const valorTotal = Number(dadosTransacao.valor_total);
       const valorVendedor = parseFloat((valorTotal / 3).toFixed(2));
       const valorPlataforma = parseFloat((valorTotal - valorVendedor).toFixed(2));
 
@@ -54,12 +48,13 @@ const processarPagamento = async (metodoPagamento, dadosTransacao, tokenCartao) 
         valor_vendedor: valorVendedor,
         valor_plataforma: valorPlataforma
       };
+
     }
     
     return {
       status_transacao: statusPagamento,
       divisao_valores: divisaoValores,
-      id_transacao_stripe: charge.id 
+      id_transacao_stripe: charge.id
     };
 
   } catch (error) {
@@ -71,8 +66,49 @@ const processarPagamento = async (metodoPagamento, dadosTransacao, tokenCartao) 
   }
 };
 
+const criarDadosDeTeste = async () => {
+  console.log('SERVICE: Criando dados de teste...');
+
+  const vendedor = await prisma.vendedor.upsert({
+    where: { id: 1 },
+    update: {},
+    create: { id: 1, nome: 'Vendedor Afiliado Teste' },
+  });
+
+  const comprador = await prisma.comprador.upsert({
+    where: { cpf: '111.222.333-44' },
+    update: {},
+    create: { nome: 'João da Silva Teste', cpf: '111.222.333-44' },
+  });
+
+  const pedidoPix = await prisma.pedido.upsert({
+    where: { id_transacao_externa: 'TXID12345ABC67890' },
+    update: {},
+    create: {
+      id_transacao_externa: 'TXID12345ABC67890',
+      valor_total: 150.00,
+      compradorId: comprador.id,
+      vendedorId: vendedor.id,
+    },
+  });
+
+  const pedidoCartao = await prisma.pedido.upsert({
+    where: { id_transacao_externa: 'TXID98765ZYX43210' },
+    update: {},
+    create: {
+      id_transacao_externa: 'TXID98765ZYX43210',
+      valor_total: 300.00,
+      compradorId: comprador.id,
+      vendedorId: vendedor.id,
+    },
+  });
+
+  console.log('SERVICE: Dados de teste criados com sucesso!');
+  return { vendedor, comprador, pedidoPix, pedidoCartao };
+};
 
 module.exports = {
   buscarDadosTransacao,
   processarPagamento,
+  criarDadosDeTeste,
 };

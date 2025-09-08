@@ -2,31 +2,24 @@ const pagamentoService = require('../services/pagamentoService');
 
 const processarPagamento = async (req, res) => {
   try {
-    console.log('CONTROLLER: 1. Iniciando processamento.');
-    
     const { id_transacao_externa, metodo_pagamento, token_cartao } = req.body;
-    
-    const dadosTransacaoDoBanco = pagamentoService.buscarDadosTransacao(id_transacao_externa);
-    console.log('CONTROLLER: 2. Dados da transação (falsos) buscados.');
+
+    const dadosTransacaoDoBanco = await pagamentoService.buscarDadosTransacao(id_transacao_externa);
 
     if (!dadosTransacaoDoBanco) {
-      console.log('CONTROLLER: Erro - Transação não encontrada no banco falso.');
       return res.status(404).json({ mensagem: `Transação com ID ${id_transacao_externa} não foi encontrada.` });
     }
     
     dadosTransacaoDoBanco.id_transacao_externa = id_transacao_externa;
     
-    console.log('CONTROLLER: 3. Chamando o service para processar o pagamento...');
     const resultadoProcessamento = await pagamentoService.processarPagamento(
       metodo_pagamento,
       dadosTransacaoDoBanco,
       token_cartao
     );
-    console.log('CONTROLLER: 4. Service respondeu. Montando a resposta final.');
 
     const httpStatus = resultadoProcessamento.status_transacao === 'APROVADO' ? 201 : 200;
 
-    console.log('CONTROLLER: 5. Enviando resposta.');
     return res.status(httpStatus).json(resultadoProcessamento);
 
   } catch (error) {
@@ -35,6 +28,19 @@ const processarPagamento = async (req, res) => {
   }
 };
 
+const seedDatabase = async (req, res) => {
+  try {
+    const resultado = await pagamentoService.criarDadosDeTeste();
+    res.status(201).json({
+      mensagem: "Banco de dados populado com dados de teste com sucesso!",
+      dados_criados: resultado
+    });
+  } catch (error) {
+    res.status(500).json({ erro: "Falha ao popular o banco de dados.", detalhes: error.message });
+  }
+};
+
 module.exports = {
-  processarPagamento
+  processarPagamento,
+  seedDatabase,
 };
