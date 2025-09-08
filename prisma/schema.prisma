@@ -6,3 +6,44 @@ datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
+model Vendedor {
+  id        Int      @id @default(autoincrement()) 
+  nome      String
+  
+  pedidos   Pedido[]
+}
+
+model Comprador {
+  id        Int      @id @default(autoincrement())
+  nome      String
+  cpf       String   @unique 
+  
+  pedidos   Pedido[]
+}
+
+model Pedido {
+  id                   Int      @id @default(autoincrement())
+  id_transacao_externa String   @unique 
+  valor_total          Decimal
+  status               String   @default("AGUARDANDO_PAGAMENTO")
+  createdAt            DateTime @default(now())
+
+  compradorId          Int
+  vendedorId           Int
+  comprador            Comprador @relation(fields: [compradorId], references: [id])
+  vendedor             Vendedor  @relation(fields: [vendedorId], references: [id])
+  
+  transacao            Transacao?
+}
+
+model Transacao {
+  id                   Int      @id @default(autoincrement())
+  id_transacao_stripe  String   @unique
+  status_transacao     String   
+  valor_vendedor       Decimal
+  valor_plataforma     Decimal
+  createdAt            DateTime @default(now())
+
+  pedidoId             Int       @unique
+  pedido               Pedido    @relation(fields: [pedidoId], references: [id])
+}
